@@ -1,0 +1,89 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Conversation {
+  id          String   @id @default(cuid())
+  userId      String?  // Optional for anonymous users
+  title       String
+  description String?
+  status      ConversationStatus @default(ACTIVE)
+  appIdea     String
+  targetUsers String[]
+  complexity  Complexity?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages      Message[]
+  specifications Specification[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id               String      @id @default(cuid())
+  conversationId   String
+  personaId        String?     // null for user messages
+  personaName      String?
+  personaRole      PersonaRole?
+  content          String
+  messageType      MessageType
+  tokens           Int?
+  processingTimeMs Int?
+  context          Json?
+  createdAt        DateTime    @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Specification {
+  id               String   @id @default(cuid())
+  conversationId   String
+  requirements     String
+  design           String
+  tasks            String
+  version          Int      @default(1)
+  totalTokens      Int?
+  generationTimeMs Int?
+  fileSizeBytes    Int?
+  generatedAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("specifications")
+}
+
+enum ConversationStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum Complexity {
+  SIMPLE
+  MODERATE
+  COMPLEX
+}
+
+enum MessageType {
+  USER
+  AI
+}
+
+enum PersonaRole {
+  PRODUCT_MANAGER
+  TECH_LEAD
+  UX_DESIGNER
+  DEVOPS
+  SCRUM_MASTER
+}
