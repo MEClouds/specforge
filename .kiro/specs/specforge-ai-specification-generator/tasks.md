@@ -17,7 +17,7 @@
   - Write unit tests for database operations
   - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ] 3. Create core backend API structure
+- [x] 3. Create core backend API structure
 
   - Set up Express.js server with middleware (CORS, body parser, error handling)
   - Implement conversation endpoints (POST /api/conversations, GET /api/conversations/:id)
