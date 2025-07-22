@@ -2,6 +2,7 @@ import { Router } from 'express';
 import conversationsRouter from './conversations';
 import messagesRouter from './messages';
 import aiRouter from './ai';
+import specificationsRouter from './specifications';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.get('/', (req, res) => {
         conversations: '/api/conversations',
         messages: '/api/conversations/:conversationId/messages',
         ai: '/api/ai',
+        specifications: '/api/specifications',
         health: '/health',
       },
     },
@@ -29,5 +31,6 @@ router.get('/', (req, res) => {
 router.use('/conversations', conversationsRouter);
 router.use('/conversations', messagesRouter);
 router.use('/ai', aiRouter);
+router.use('/specifications', specificationsRouter);
 
 export default router;
