@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import conversationsRouter from './conversations';
 import messagesRouter from './messages';
+import aiRouter from './ai';
 
 const router = Router();
 
@@ -15,6 +16,7 @@ router.get('/', (req, res) => {
       endpoints: {
         conversations: '/api/conversations',
         messages: '/api/conversations/:conversationId/messages',
+        ai: '/api/ai',
         health: '/health',
       },
     },
@@ -26,5 +28,6 @@ router.get('/', (req, res) => {
 // Mount route modules
 router.use('/conversations', conversationsRouter);
 router.use('/conversations', messagesRouter);
+router.use('/ai', aiRouter);
 
 export default router;

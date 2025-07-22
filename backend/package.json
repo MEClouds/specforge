@@ -18,13 +18,16 @@
   "license": "ISC",
   "description": "SpecForge AI Specification Generator Backend",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.57.0",
     "@prisma/client": "^6.12.0",
+    "axios": "^1.10.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
     "morgan": "^1.10.1",
+    "openai": "^5.10.1",
     "prisma": "^6.12.0"
   },
   "devDependencies": {
