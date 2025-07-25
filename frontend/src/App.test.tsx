@@ -1,16 +1,26 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import App from './App';
+import { MemoryRouter } from 'react-router-dom';
+import Home from './pages/Home';
 
 describe('App', () => {
-  it('renders without crashing', () => {
-    render(<App />);
-    expect(screen.getByText('Vite + React')).toBeInTheDocument();
+  it('renders home page without crashing', () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('Welcome to SpecForge')).toBeInTheDocument();
   });
 
-  it('has a working counter button', () => {
-    render(<App />);
-    const button = screen.getByRole('button', { name: /count is/i });
-    expect(button).toBeInTheDocument();
+  it('renders the home page with main features', () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('AI Team Conversation')).toBeInTheDocument();
+    expect(screen.getByText('Professional Specifications')).toBeInTheDocument();
+    expect(screen.getByText('Start New Conversation')).toBeInTheDocument();
   });
 });
