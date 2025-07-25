@@ -19,12 +19,56 @@ router.get('/', (req, res) => {
         messages: '/api/conversations/:conversationId/messages',
         ai: '/api/ai',
         specifications: '/api/specifications',
+        websocket: '/api/websocket/status',
         health: '/health',
       },
     },
     timestamp: new Date().toISOString(),
     requestId: req.headers['x-request-id'] || 'unknown',
   });
+});
+
+// WebSocket status endpoint
+router.get('/websocket/status', (req, res) => {
+  try {
+    if (!req.webSocketService) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'WEBSOCKET_NOT_AVAILABLE',
+          message: 'WebSocket service is not available',
+          timestamp: new Date().toISOString(),
+          requestId: req.headers['x-request-id'] || 'unknown',
+        },
+      });
+    }
+
+    const stats = req.webSocketService.getConnectionStats();
+
+    res.json({
+      success: true,
+      data: {
+        status: 'active',
+        connections: stats.totalConnections,
+        activeConversations: stats.activeConversations,
+        typingUsers: stats.typingUsers,
+        uptime: process.uptime(),
+      },
+      timestamp: new Date().toISOString(),
+      requestId: req.headers['x-request-id'] || 'unknown',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'WEBSOCKET_STATUS_ERROR',
+        message: 'Failed to get WebSocket status',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+        requestId: req.headers['x-request-id'] || 'unknown',
+      },
+    });
+  }
 });
 
 // Mount route modules

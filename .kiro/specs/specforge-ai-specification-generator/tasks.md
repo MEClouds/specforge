@@ -45,7 +45,7 @@
   - Write unit tests for file generation and validation
   - _Requirements: 1.2, 1.3, 4.1, 4.2, 4.3, 4.4, 6.4_
 
-- [ ] 6. Create WebSocket server for real-time communication
+- [x] 6. Create WebSocket server for real-time communication
 
   - Set up Socket.IO server for real-time messaging
   - Implement WebSocket event handlers for conversation management
