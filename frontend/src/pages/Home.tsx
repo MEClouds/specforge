@@ -1,12 +1,51 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card, {
   CardContent,
   CardHeader,
   CardTitle,
 } from '../components/ui/Card';
 import Button from '../components/ui/Button';
+import { ConversationList } from '../components/conversation/ConversationList';
+import { useConversation } from '../hooks/useConversation';
+import type { Conversation } from '../types';
 
 const Home: React.FC = () => {
+  const navigate = useNavigate();
+  const { switchConversation } = useConversation();
+  const [showConversations, setShowConversations] = useState(false);
+
+  const handleCreateNew = () => {
+    navigate('/conversation/new');
+  };
+
+  const handleSelectConversation = async (conversation: Conversation) => {
+    const success = await switchConversation(conversation);
+    if (success) {
+      navigate(`/conversation/${conversation.id}`);
+    }
+  };
+
+  if (showConversations) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="mb-6">
+          <Button
+            variant="secondary"
+            onClick={() => setShowConversations(false)}
+            className="mb-4"
+          >
+            ← Back to Home
+          </Button>
+        </div>
+        <ConversationList
+          onSelectConversation={handleSelectConversation}
+          onCreateNew={handleCreateNew}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="text-center mb-8">
@@ -88,11 +127,21 @@ const Home: React.FC = () => {
         </Card>
       </div>
 
-      <div className="text-center">
-        <Button size="lg" className="px-8">
-          Start New Conversation
-        </Button>
-        <p className="text-sm text-gray-500 mt-2">
+      <div className="text-center space-y-4">
+        <div className="flex justify-center space-x-4">
+          <Button size="lg" className="px-8" onClick={handleCreateNew}>
+            Start New Conversation
+          </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            className="px-8"
+            onClick={() => setShowConversations(true)}
+          >
+            View Conversations
+          </Button>
+        </div>
+        <p className="text-sm text-gray-500">
           Describe your app idea and let our AI team help you create
           professional specifications
         </p>

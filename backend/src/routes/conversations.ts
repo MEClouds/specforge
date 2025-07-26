@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
-const { body, param, validationResult } = require('express-validator');
+const { body, param, query, validationResult } = require('express-validator');
 import { databaseService } from '../services/DatabaseService';
-import { Complexity } from '@prisma/client';
+import { Complexity, ConversationStatus } from '@prisma/client';
 
 const router = Router();
 
@@ -78,6 +78,47 @@ const getConversationValidation = [
     .trim()
     .isLength({ min: 1 })
     .withMessage('Conversation ID must be a non-empty string'),
+];
+
+// Get conversations list validation rules
+const getConversationsValidation = [
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be between 1 and 100'),
+  query('status')
+    .optional()
+    .isIn(['ACTIVE', 'COMPLETED', 'ARCHIVED'])
+    .withMessage('Status must be one of: ACTIVE, COMPLETED, ARCHIVED'),
+];
+
+// Update conversation validation rules
+const updateConversationValidation = [
+  param('id')
+    .isString()
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Conversation ID must be a non-empty string'),
+  body('status')
+    .optional()
+    .isIn(['ACTIVE', 'COMPLETED', 'ARCHIVED'])
+    .withMessage('Status must be one of: ACTIVE, COMPLETED, ARCHIVED'),
+  body('title')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 1, max: 255 })
+    .withMessage('Title must be a string between 1 and 255 characters'),
+  body('description')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Description must be a string with maximum 1000 characters'),
 ];
 
 // POST /api/conversations - Create new conversation
@@ -187,6 +228,136 @@ router.get(
         timestamp: new Date().toISOString(),
         requestId: req.headers['x-request-id'] || 'unknown',
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/conversations - Get conversations list with pagination
+router.get(
+  '/',
+  getConversationsValidation,
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const status = req.query.status as ConversationStatus | undefined;
+
+      const conversations = await databaseService.getConversations({
+        page,
+        limit,
+        status,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          conversations: conversations.data.map((conv) => ({
+            id: conv.id,
+            userId: conv.userId,
+            title: conv.title,
+            description: conv.description,
+            status: conv.status,
+            appIdea: conv.appIdea,
+            targetUsers: conv.targetUsers,
+            complexity: conv.complexity,
+            createdAt: conv.createdAt,
+            updatedAt: conv.updatedAt,
+            messageCount: conv._count.messages,
+            specificationCount: conv._count.specifications,
+          })),
+          pagination: conversations.pagination,
+        },
+        timestamp: new Date().toISOString(),
+        requestId: req.headers['x-request-id'] || 'unknown',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// PATCH /api/conversations/:id - Update conversation
+router.patch(
+  '/:id',
+  updateConversationValidation,
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { status, title, description } = req.body;
+
+      const conversation = await databaseService.updateConversation(id, {
+        status: status as ConversationStatus,
+        title,
+        description,
+      });
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'CONVERSATION_NOT_FOUND',
+            message: 'Conversation not found',
+            timestamp: new Date().toISOString(),
+            requestId: req.headers['x-request-id'] || 'unknown',
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          conversation: {
+            id: conversation.id,
+            userId: conversation.userId,
+            title: conversation.title,
+            description: conversation.description,
+            status: conversation.status,
+            appIdea: conversation.appIdea,
+            targetUsers: conversation.targetUsers,
+            complexity: conversation.complexity,
+            createdAt: conversation.createdAt,
+            updatedAt: conversation.updatedAt,
+            messageCount: conversation._count?.messages || 0,
+            specificationCount: conversation._count?.specifications || 0,
+          },
+        },
+        timestamp: new Date().toISOString(),
+        requestId: req.headers['x-request-id'] || 'unknown',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /api/conversations/:id - Delete conversation
+router.delete(
+  '/:id',
+  getConversationValidation,
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      const deleted = await databaseService.deleteConversation(id);
+
+      if (!deleted) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'CONVERSATION_NOT_FOUND',
+            message: 'Conversation not found',
+            timestamp: new Date().toISOString(),
+            requestId: req.headers['x-request-id'] || 'unknown',
+          },
+        });
+      }
+
+      res.status(204).send();
     } catch (error) {
       next(error);
     }

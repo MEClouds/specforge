@@ -1,65 +1,198 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
+import { useConversation } from '../hooks/useConversation';
 import ChatInterface from '../components/chat/ChatInterface';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
+import Card from '../components/ui/Card';
 
 const Conversation: React.FC = () => {
   const { id: conversationId } = useParams<{ id: string }>();
-  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const navigate = useNavigate();
 
   const {
     conversation: { current, activePersonas },
-    setCurrentConversation,
-    resetConversation,
-    ui: { error },
+    ui: { error, isLoading },
   } = useAppStore();
 
-  const createNewConversation = useCallback(async () => {
-    setIsCreatingConversation(true);
-    try {
-      // For now, create a mock conversation
-      // In a real implementation, this would call the API
-      const mockConversation = {
-        id: `conv_${Date.now()}`,
-        title: 'New App Specification',
-        description: 'AI-assisted app specification generation',
-        status: 'active' as const,
-        appIdea: '',
-        targetUsers: [],
-        complexity: 'moderate' as const,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+  const {
+    createConversation,
+    loadConversation,
+    clearCurrentConversation,
+    isCreating,
+  } = useConversation();
 
-      setCurrentConversation(mockConversation);
-    } catch (error) {
-      console.error('Failed to create conversation:', error);
-    } finally {
-      setIsCreatingConversation(false);
-    }
-  }, [setCurrentConversation]);
+  // Form state for new conversation
+  const [showNewConversationForm, setShowNewConversationForm] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    appIdea: '',
+    targetUsers: '',
+    complexity: 'moderate' as 'simple' | 'moderate' | 'complex',
+  });
 
-  // Create a new conversation if no ID is provided
+  // Load existing conversation or show new conversation form
   useEffect(() => {
-    if (!conversationId && !current && !isCreatingConversation) {
-      createNewConversation();
+    if (conversationId && conversationId !== 'new') {
+      loadConversation(conversationId);
+    } else if (conversationId === 'new') {
+      clearCurrentConversation();
+      setShowNewConversationForm(true);
     }
-  }, [conversationId, createNewConversation, current, isCreatingConversation]);
+  }, [conversationId, loadConversation, clearCurrentConversation]);
 
-  const handleStartOver = () => {
-    resetConversation();
-    createNewConversation();
+  const handleCreateConversation = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.appIdea.trim() || !formData.targetUsers.trim()) {
+      return;
+    }
+
+    const conversation = await createConversation({
+      title: formData.title || `${formData.appIdea.substring(0, 50)}...`,
+      description: formData.description,
+      appIdea: formData.appIdea,
+      targetUsers: formData.targetUsers.split(',').map((user) => user.trim()),
+      complexity: formData.complexity,
+    });
+
+    if (conversation) {
+      navigate(`/conversation/${conversation.id}`);
+      setShowNewConversationForm(false);
+    }
   };
 
-  if (isCreatingConversation) {
+  const handleStartOver = () => {
+    navigate('/conversation/new');
+  };
+
+  // Show new conversation form
+  if (showNewConversationForm) {
+    return (
+      <div className="h-full flex items-center justify-center p-6">
+        <Card className="w-full max-w-2xl p-6">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            Start New Conversation
+          </h2>
+          <form onSubmit={handleCreateConversation} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                App Title (Optional)
+              </label>
+              <Input
+                value={formData.title}
+                onChange={(e) =>
+                  setFormData({ ...formData, title: e.target.value })
+                }
+                placeholder="My Awesome App"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description (Optional)
+              </label>
+              <Input
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                placeholder="Brief description of your app"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                App Idea *
+              </label>
+              <textarea
+                value={formData.appIdea}
+                onChange={(e) =>
+                  setFormData({ ...formData, appIdea: e.target.value })
+                }
+                placeholder="Describe your app idea in detail. What problem does it solve? What features should it have?"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows={4}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Target Users *
+              </label>
+              <Input
+                value={formData.targetUsers}
+                onChange={(e) =>
+                  setFormData({ ...formData, targetUsers: e.target.value })
+                }
+                placeholder="developers, students, business owners (comma-separated)"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Complexity
+              </label>
+              <select
+                value={formData.complexity}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    complexity: e.target.value as any,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="simple">Simple</option>
+                <option value="moderate">Moderate</option>
+                <option value="complex">Complex</option>
+              </select>
+            </div>
+
+            <div className="flex space-x-3 pt-4">
+              <Button
+                type="submit"
+                disabled={
+                  isCreating ||
+                  !formData.appIdea.trim() ||
+                  !formData.targetUsers.trim()
+                }
+                className="flex-1"
+              >
+                {isCreating ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  'Start Conversation'
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => navigate('/')}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isLoading || isCreating) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <LoadingSpinner size="lg" className="mx-auto mb-4" />
           <p className="text-gray-600">
-            Setting up your AI team conversation...
+            {isCreating
+              ? 'Creating conversation...'
+              : 'Loading conversation...'}
           </p>
         </div>
       </div>
@@ -76,7 +209,7 @@ const Conversation: React.FC = () => {
           <p className="text-gray-600 mb-4">
             Let's start a new conversation with the AI team.
           </p>
-          <Button onClick={createNewConversation}>
+          <Button onClick={() => navigate('/conversation/new')}>
             Start New Conversation
           </Button>
         </div>

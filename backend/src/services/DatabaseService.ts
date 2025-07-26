@@ -116,12 +116,86 @@ export class DatabaseService {
     }
   }
 
-  async getConversations(userId?: string): Promise<Conversation[]> {
+  async getConversations(
+    options: {
+      page?: number;
+      limit?: number;
+      status?: ConversationStatus;
+      userId?: string;
+    } = {}
+  ): Promise<{
+    data: (Conversation & {
+      _count: {
+        messages: number;
+        specifications: number;
+      };
+    })[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
     try {
-      const where = userId ? { userId } : {};
-      return await this.prisma.conversation.findMany({
-        where,
-        orderBy: { updatedAt: 'desc' },
+      const { page = 1, limit = 20, status, userId } = options;
+      const skip = (page - 1) * limit;
+
+      const where: any = {};
+      if (userId) where.userId = userId;
+      if (status) where.status = status;
+
+      const [conversations, total] = await Promise.all([
+        this.prisma.conversation.findMany({
+          where,
+          orderBy: { updatedAt: 'desc' },
+          skip,
+          take: limit,
+          include: {
+            _count: {
+              select: {
+                messages: true,
+                specifications: true,
+              },
+            },
+          },
+        }),
+        this.prisma.conversation.count({ where }),
+      ]);
+
+      return {
+        data: conversations,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      throw new Error(`Failed to get conversations: ${error}`);
+    }
+  }
+
+  async updateConversation(
+    id: string,
+    data: UpdateConversationData
+  ): Promise<
+    | (Conversation & {
+        _count?: {
+          messages: number;
+          specifications: number;
+        };
+      })
+    | null
+  > {
+    try {
+      return await this.prisma.conversation.update({
+        where: { id },
+        data: {
+          ...data,
+          updatedAt: new Date(),
+        },
         include: {
           _count: {
             select: {
@@ -132,33 +206,29 @@ export class DatabaseService {
         },
       });
     } catch (error) {
-      throw new Error(`Failed to get conversations: ${error}`);
-    }
-  }
-
-  async updateConversation(
-    id: string,
-    data: UpdateConversationData
-  ): Promise<Conversation> {
-    try {
-      return await this.prisma.conversation.update({
-        where: { id },
-        data: {
-          ...data,
-          updatedAt: new Date(),
-        },
-      });
-    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes('Record to update not found')
+      ) {
+        return null;
+      }
       throw new Error(`Failed to update conversation: ${error}`);
     }
   }
 
-  async deleteConversation(id: string): Promise<void> {
+  async deleteConversation(id: string): Promise<boolean> {
     try {
       await this.prisma.conversation.delete({
         where: { id },
       });
+      return true;
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes('Record to delete does not exist')
+      ) {
+        return false;
+      }
       throw new Error(`Failed to delete conversation: ${error}`);
     }
   }

@@ -1,14 +1,36 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { cn } from '../utils/cn';
+import { ConversationNavigation } from './conversation/ConversationNavigation';
+import { useConversation } from '../hooks/useConversation';
+import type { Conversation } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const sidebarOpen = useAppStore((state) => state.ui.sidebarOpen);
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
+  const { switchConversation } = useConversation();
+
+  const handleCreateNew = () => {
+    navigate('/conversation/new');
+    setSidebarOpen(false);
+  };
+
+  const handleSelectConversation = async (conversation: Conversation) => {
+    const success = await switchConversation(conversation);
+    if (success) {
+      navigate(`/conversation/${conversation.id}`);
+      setSidebarOpen(false);
+    }
+  };
+
+  const isConversationPage = location.pathname.startsWith('/conversation');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -68,13 +90,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Navigation */}
         <nav className="mt-5 px-2">
-          <div className="space-y-1">
-            <a
-              href="#"
-              className="bg-primary-100 text-primary-900 group flex items-center px-2 py-2 text-sm font-medium rounded-md"
+          <div className="space-y-1 mb-4">
+            <button
+              onClick={() => navigate('/')}
+              className={cn(
+                'w-full text-left group flex items-center px-2 py-2 text-sm font-medium rounded-md',
+                location.pathname === '/'
+                  ? 'bg-primary-100 text-primary-900'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              )}
             >
               <svg
-                className="text-primary-500 mr-3 h-6 w-6"
+                className={cn(
+                  'mr-3 h-6 w-6',
+                  location.pathname === '/'
+                    ? 'text-primary-500'
+                    : 'text-gray-400 group-hover:text-gray-500'
+                )}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -83,32 +115,53 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                />
+              </svg>
+              Home
+            </button>
+            <button
+              onClick={handleCreateNew}
+              className={cn(
+                'w-full text-left group flex items-center px-2 py-2 text-sm font-medium rounded-md',
+                location.pathname === '/conversation/new'
+                  ? 'bg-primary-100 text-primary-900'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              )}
+            >
+              <svg
+                className={cn(
+                  'mr-3 h-6 w-6',
+                  location.pathname === '/conversation/new'
+                    ? 'text-primary-500'
+                    : 'text-gray-400 group-hover:text-gray-500'
+                )}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
                 />
               </svg>
               New Conversation
-            </a>
-            <a
-              href="#"
-              className="text-gray-600 hover:bg-gray-50 hover:text-gray-900 group flex items-center px-2 py-2 text-sm font-medium rounded-md"
-            >
-              <svg
-                className="text-gray-400 group-hover:text-gray-500 mr-3 h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              Specifications
-            </a>
+            </button>
           </div>
         </nav>
+
+        {/* Conversation Navigation - only show on conversation pages */}
+        {isConversationPage && (
+          <div className="flex-1 overflow-hidden">
+            <ConversationNavigation
+              onSelectConversation={handleSelectConversation}
+              onCreateNew={handleCreateNew}
+              className="h-full"
+            />
+          </div>
+        )}
       </div>
 
       {/* Main content */}

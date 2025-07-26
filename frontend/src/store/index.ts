@@ -7,6 +7,16 @@ interface ConversationState {
   messages: ChatMessage[];
   activePersonas: AIPersona[];
   isGenerating: boolean;
+  list: (Conversation & {
+    messageCount: number;
+    specificationCount: number;
+  })[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 interface SpecificationState {
@@ -36,6 +46,31 @@ interface AppState {
   setActivePersonas: (personas: AIPersona[]) => void;
   setIsGenerating: (isGenerating: boolean) => void;
 
+  // Conversation list management
+  setConversationList: (
+    conversations: (Conversation & {
+      messageCount: number;
+      specificationCount: number;
+    })[],
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    }
+  ) => void;
+  addConversationToList: (
+    conversation: Conversation & {
+      messageCount: number;
+      specificationCount: number;
+    }
+  ) => void;
+  updateConversationInList: (
+    id: string,
+    updates: Partial<Conversation>
+  ) => void;
+  removeConversationFromList: (id: string) => void;
+
   setSpecifications: (specs: Partial<SpecificationState>) => void;
   setPreviewMode: (isPreviewMode: boolean) => void;
 
@@ -54,6 +89,13 @@ const initialConversationState: ConversationState = {
   messages: [],
   activePersonas: [],
   isGenerating: false,
+  list: [],
+  pagination: {
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  },
 };
 
 const initialSpecificationState: SpecificationState = {
@@ -105,6 +147,46 @@ export const useAppStore = create<AppState>()(
       setIsGenerating: (isGenerating) =>
         set((state) => ({
           conversation: { ...state.conversation, isGenerating },
+        })),
+
+      // Conversation list management
+      setConversationList: (list, pagination) =>
+        set((state) => ({
+          conversation: { ...state.conversation, list, pagination },
+        })),
+
+      addConversationToList: (conversation) =>
+        set((state) => ({
+          conversation: {
+            ...state.conversation,
+            list: [conversation, ...state.conversation.list],
+            pagination: {
+              ...state.conversation.pagination,
+              total: state.conversation.pagination.total + 1,
+            },
+          },
+        })),
+
+      updateConversationInList: (id, updates) =>
+        set((state) => ({
+          conversation: {
+            ...state.conversation,
+            list: state.conversation.list.map((conv) =>
+              conv.id === id ? { ...conv, ...updates } : conv
+            ),
+          },
+        })),
+
+      removeConversationFromList: (id) =>
+        set((state) => ({
+          conversation: {
+            ...state.conversation,
+            list: state.conversation.list.filter((conv) => conv.id !== id),
+            pagination: {
+              ...state.conversation.pagination,
+              total: Math.max(0, state.conversation.pagination.total - 1),
+            },
+          },
         })),
 
       // Specification actions
