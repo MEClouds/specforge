@@ -1,9 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { useAppStore } from '../../store';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import LoadingSpinner from '../ui/LoadingSpinner';
+
+// Lazy load SpecificationPreview for better performance
+const SpecificationPreview = lazy(() =>
+  import('../specifications/SpecificationPreview').then((module) => ({
+    default: module.SpecificationPreview,
+  }))
+);
 
 interface ConversationFlowManagerProps {
   conversationId: string;

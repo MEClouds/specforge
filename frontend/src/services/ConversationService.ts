@@ -1,4 +1,5 @@
 import type { Conversation, ChatMessage, Specification } from '../types';
+import { performanceMonitor } from '../utils/performance';
 
 interface CreateConversationRequest {
   title: string;
@@ -108,6 +109,7 @@ class ConversationService {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const requestId = crypto.randomUUID();
+    const startTime = performance.now();
 
     try {
       const controller = new AbortController();
@@ -126,6 +128,14 @@ class ConversationService {
       clearTimeout(timeoutId);
 
       const data = await response.json();
+      const endTime = performance.now();
+
+      // Track API call performance
+      performanceMonitor.trackApiCall(
+        endpoint,
+        endTime - startTime,
+        response.status
+      );
 
       if (!response.ok) {
         const errorData = data as ErrorResponse;
@@ -138,6 +148,11 @@ class ConversationService {
 
       return data;
     } catch (error) {
+      const endTime = performance.now();
+
+      // Track failed API calls
+      performanceMonitor.trackApiCall(endpoint, endTime - startTime, 0);
+
       // Handle network errors, timeouts, and aborts
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
@@ -170,7 +185,7 @@ class ConversationService {
           );
         }
 
-        if ((error as any).statusCode >= 500) {
+        if ((error as unknown).statusCode >= 500) {
           throw new Error(
             'Server is temporarily unavailable. Please try again in a few moments.'
           );

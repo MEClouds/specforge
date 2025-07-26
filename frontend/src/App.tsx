@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -7,8 +8,11 @@ import {
 import ErrorBoundary from './components/ErrorBoundary';
 import GlobalErrorHandler from './components/GlobalErrorHandler';
 import Layout from './components/Layout';
-import Home from './pages/Home';
-import Conversation from './pages/Conversation';
+import LoadingSpinner from './components/ui/LoadingSpinner';
+
+// Lazy load pages for code splitting
+const Home = lazy(() => import('./pages/Home'));
+const Conversation = lazy(() => import('./pages/Conversation'));
 
 function App() {
   return (
@@ -16,12 +20,21 @@ function App() {
       <GlobalErrorHandler>
         <Router>
           <Layout>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/conversation" element={<Conversation />} />
-              <Route path="/conversation/:id" element={<Conversation />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-64">
+                  <LoadingSpinner />
+                  <span className="ml-2">Loading...</span>
+                </div>
+              }
+            >
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/conversation" element={<Conversation />} />
+                <Route path="/conversation/:id" element={<Conversation />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
           </Layout>
         </Router>
       </GlobalErrorHandler>
