@@ -275,7 +275,7 @@ class ConversationService {
   }
 
   // Helper methods for persona mapping
-  private mapPersonaRole(role: string | undefined): any {
+  private mapPersonaRole(role: string | undefined): unknown {
     const roleMap: Record<string, string> = {
       PRODUCT_MANAGER: 'product-manager',
       TECH_LEAD: 'tech-lead',

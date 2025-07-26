@@ -322,6 +322,275 @@ router.get(
   }
 );
 
+// Get conversation progress
+router.get(
+  '/conversation-progress/:id',
+  [param('id').isUUID().withMessage('Valid conversation ID required')],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+
+    try {
+      const { id } = req.params;
+
+      // Get conversation context
+      const conversation = await dbService.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: 'Conversation not found',
+        });
+      }
+
+      // Build context
+      const context: ConversationContext = {
+        conversationId: id,
+        appIdea: conversation.appIdea,
+        targetUsers: conversation.targetUsers,
+        complexity: conversation.complexity?.toLowerCase() as
+          | 'simple'
+          | 'moderate'
+          | 'complex',
+        currentPhase: ConversationPhase.INITIAL_DISCOVERY, // TODO: Track in DB
+        previousMessages: conversation.messages.map((msg) => ({
+          id: msg.id,
+          persona: msg.personaRole as PersonaRole,
+          content: msg.content,
+          timestamp: msg.createdAt,
+          type: msg.messageType.toLowerCase() as 'user' | 'ai',
+          tokens: msg.tokens || undefined,
+          processingTimeMs: msg.processingTimeMs || undefined,
+        })),
+        activePersonas: [],
+      };
+
+      if (!checkAIService(res)) return;
+
+      const progress = orchestrator!.getPhaseProgress(context);
+
+      // Generate suggested actions based on current phase
+      const suggestedActions = await orchestrator!.orchestrateConversation(
+        context,
+        'What should we focus on next?'
+      );
+
+      res.json({
+        success: true,
+        data: {
+          ...progress,
+          suggestedActions: suggestedActions.suggestedActions,
+          isComplete: suggestedActions.isComplete,
+        },
+      });
+    } catch (error) {
+      console.error('Error getting conversation progress:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get conversation progress',
+      });
+    }
+  }
+);
+
+// Transition conversation phase
+router.post(
+  '/transition-phase',
+  [
+    body('conversationId')
+      .isUUID()
+      .withMessage('Valid conversation ID required'),
+    body('nextPhase')
+      .isIn(Object.values(ConversationPhase))
+      .withMessage('Valid phase required'),
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+
+    try {
+      const { conversationId, nextPhase } = req.body;
+
+      // Get conversation context
+      const conversation = await dbService.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: 'Conversation not found',
+        });
+      }
+
+      // TODO: Update conversation phase in database
+      // For now, we'll just acknowledge the transition
+
+      // Generate transition message
+      const transitionMessage = `Moving to ${nextPhase.replace('-', ' ')} phase. Let's focus on the next set of requirements.`;
+
+      // Add system message about phase transition
+      await dbService.addMessage({
+        conversationId,
+        personaId: 'system',
+        personaName: 'System',
+        personaRole: 'SCRUM_MASTER',
+        content: transitionMessage,
+        messageType: 'AI',
+      });
+
+      res.json({
+        success: true,
+        data: {
+          message: 'Phase transition successful',
+          nextPhase,
+        },
+      });
+    } catch (error) {
+      console.error('Error transitioning phase:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to transition phase',
+      });
+    }
+  }
+);
+
+// Resolve persona conflict
+router.post(
+  '/resolve-conflict',
+  [
+    body('conversationId')
+      .isUUID()
+      .withMessage('Valid conversation ID required'),
+    body('conflictingMessages')
+      .isArray({ min: 2 })
+      .withMessage('At least 2 conflicting messages required'),
+    body('resolutionApproach')
+      .isIn([
+        'compromise',
+        'data-driven',
+        'user-focused',
+        'technical-feasibility',
+        'business-value',
+        'custom',
+      ])
+      .withMessage('Valid resolution approach required'),
+    body('customGuidance').optional().isString(),
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      });
+    }
+
+    try {
+      const {
+        conversationId,
+        conflictingMessages,
+        resolutionApproach,
+        customGuidance,
+      } = req.body;
+
+      // Get conversation context
+      const conversation = await dbService.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: 'Conversation not found',
+        });
+      }
+
+      // Build context
+      const context: ConversationContext = {
+        conversationId,
+        appIdea: conversation.appIdea,
+        targetUsers: conversation.targetUsers,
+        complexity: conversation.complexity?.toLowerCase() as
+          | 'simple'
+          | 'moderate'
+          | 'complex',
+        currentPhase: ConversationPhase.INITIAL_DISCOVERY, // TODO: Track in DB
+        previousMessages: conversation.messages.map((msg) => ({
+          id: msg.id,
+          persona: msg.personaRole as PersonaRole,
+          content: msg.content,
+          timestamp: msg.createdAt,
+          type: msg.messageType.toLowerCase() as 'user' | 'ai',
+          tokens: msg.tokens || undefined,
+          processingTimeMs: msg.processingTimeMs || undefined,
+        })),
+        activePersonas: [],
+      };
+
+      if (!checkAIService(res)) return;
+
+      // Convert conflicting messages to AI responses format
+      const aiResponses = conflictingMessages.map((msg: any) => ({
+        content: msg.content,
+        persona: msg.persona?.role || PersonaRole.PRODUCT_MANAGER,
+        tokens: msg.tokens || 0,
+        processingTimeMs: msg.processingTimeMs || 0,
+      }));
+
+      const resolution = await orchestrator!.handlePersonaConflict(
+        context,
+        aiResponses
+      );
+
+      // Save resolution message to database
+      await dbService.addMessage({
+        conversationId,
+        personaId: resolution.persona,
+        personaName: aiService!.getPersonaConfig(resolution.persona).name,
+        personaRole: resolution.persona.toUpperCase().replace('-', '_') as any,
+        content: resolution.content,
+        messageType: 'AI',
+        tokens: resolution.tokens,
+        processingTimeMs: resolution.processingTimeMs,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          id: `resolution-${Date.now()}`,
+          conversationId,
+          persona: {
+            id: resolution.persona,
+            name: aiService!.getPersonaConfig(resolution.persona).name,
+            role: resolution.persona,
+            avatar: aiService!.getPersonaConfig(resolution.persona).avatar,
+            color: aiService!.getPersonaConfig(resolution.persona).color,
+            expertise: aiService!.getPersonaConfig(resolution.persona)
+              .expertise,
+          },
+          content: resolution.content,
+          timestamp: new Date(),
+          type: 'ai',
+        },
+      });
+    } catch (error) {
+      console.error('Error resolving conflict:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to resolve conflict',
+      });
+    }
+  }
+);
+
 // Validate AI API keys
 router.get('/validate-keys', async (req: Request, res: Response) => {
   try {

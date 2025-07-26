@@ -28,7 +28,7 @@ export const ConversationNavigation: React.FC<ConversationNavigationProps> = ({
 
   useEffect(() => {
     loadRecentConversations();
-  }, []);
+  }, [loadRecentConversations]);
 
   useEffect(() => {
     // Filter conversations based on search query

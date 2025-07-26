@@ -17,6 +17,16 @@ interface ConversationState {
     total: number;
     totalPages: number;
   };
+  // Conversation flow state
+  currentPhase: string;
+  completedPhases: string[];
+  nextPhase?: string;
+  overallProgress: number;
+  suggestedActions: string[];
+  isComplete: boolean;
+  // Conflict resolution state
+  conflictingMessages: ChatMessage[];
+  showConflictResolution: boolean;
 }
 
 interface SpecificationState {
@@ -45,6 +55,24 @@ interface AppState {
   setMessages: (messages: ChatMessage[]) => void;
   setActivePersonas: (personas: AIPersona[]) => void;
   setIsGenerating: (isGenerating: boolean) => void;
+
+  // Conversation flow actions
+  setConversationProgress: (progress: {
+    currentPhase: string;
+    completedPhases: string[];
+    nextPhase?: string;
+    overallProgress: number;
+    suggestedActions: string[];
+    isComplete: boolean;
+  }) => void;
+  setCurrentPhase: (phase: string) => void;
+  addCompletedPhase: (phase: string) => void;
+  setSuggestedActions: (actions: string[]) => void;
+  setConversationComplete: (isComplete: boolean) => void;
+
+  // Conflict resolution actions
+  setConflictingMessages: (messages: ChatMessage[]) => void;
+  setShowConflictResolution: (show: boolean) => void;
 
   // Conversation list management
   setConversationList: (
@@ -96,6 +124,15 @@ const initialConversationState: ConversationState = {
     total: 0,
     totalPages: 0,
   },
+  // Conversation flow state
+  currentPhase: 'initial-discovery',
+  completedPhases: [],
+  overallProgress: 0,
+  suggestedActions: [],
+  isComplete: false,
+  // Conflict resolution state
+  conflictingMessages: [],
+  showConflictResolution: false,
 };
 
 const initialSpecificationState: SpecificationState = {
@@ -147,6 +184,46 @@ export const useAppStore = create<AppState>()(
       setIsGenerating: (isGenerating) =>
         set((state) => ({
           conversation: { ...state.conversation, isGenerating },
+        })),
+
+      // Conversation flow actions
+      setConversationProgress: (progress) =>
+        set((state) => ({
+          conversation: { ...state.conversation, ...progress },
+        })),
+
+      setCurrentPhase: (currentPhase) =>
+        set((state) => ({
+          conversation: { ...state.conversation, currentPhase },
+        })),
+
+      addCompletedPhase: (phase) =>
+        set((state) => ({
+          conversation: {
+            ...state.conversation,
+            completedPhases: [...state.conversation.completedPhases, phase],
+          },
+        })),
+
+      setSuggestedActions: (suggestedActions) =>
+        set((state) => ({
+          conversation: { ...state.conversation, suggestedActions },
+        })),
+
+      setConversationComplete: (isComplete) =>
+        set((state) => ({
+          conversation: { ...state.conversation, isComplete },
+        })),
+
+      // Conflict resolution actions
+      setConflictingMessages: (conflictingMessages) =>
+        set((state) => ({
+          conversation: { ...state.conversation, conflictingMessages },
+        })),
+
+      setShowConflictResolution: (showConflictResolution) =>
+        set((state) => ({
+          conversation: { ...state.conversation, showConflictResolution },
         })),
 
       // Conversation list management

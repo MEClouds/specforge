@@ -7,6 +7,7 @@ import Card, {
 } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { ConversationList } from '../components/conversation/ConversationList';
+import ConversationStarter from '../components/conversation/ConversationStarter';
 import { useConversation } from '../hooks/useConversation';
 import type { Conversation } from '../types';
 
@@ -14,9 +15,14 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
   const { switchConversation } = useConversation();
   const [showConversations, setShowConversations] = useState(false);
+  const [showConversationStarter, setShowConversationStarter] = useState(false);
 
   const handleCreateNew = () => {
-    navigate('/conversation/new');
+    setShowConversationStarter(true);
+  };
+
+  const handleConversationCreated = (conversationId: string) => {
+    navigate(`/conversation/${conversationId}`);
   };
 
   const handleSelectConversation = async (conversation: Conversation) => {
@@ -25,6 +31,27 @@ const Home: React.FC = () => {
       navigate(`/conversation/${conversation.id}`);
     }
   };
+
+  if (showConversationStarter) {
+    return (
+      <div className="h-full overflow-auto">
+        <div className="max-w-4xl mx-auto p-6">
+          <div className="mb-6">
+            <Button
+              variant="secondary"
+              onClick={() => setShowConversationStarter(false)}
+              className="mb-4"
+            >
+              ← Back to Home
+            </Button>
+          </div>
+          <ConversationStarter
+            onConversationCreated={handleConversationCreated}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (showConversations) {
     return (

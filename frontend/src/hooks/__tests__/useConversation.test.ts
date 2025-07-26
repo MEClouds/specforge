@@ -23,7 +23,7 @@ vi.mock('../../store', () => ({
 
 const mockConversationService = conversationService as any;
 
-const mockUseAppStore = useAppStore as any;
+const mockUseAppStore = useAppStore as unknown;
 
 describe('useConversation', () => {
   const mockStoreActions = {
