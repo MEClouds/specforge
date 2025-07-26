@@ -1,6 +1,13 @@
 import { useState, useCallback } from 'react';
 import { useAppStore } from '../store';
 import { conversationService } from '../services/ConversationService';
+import { useToast } from '../contexts/ToastContext';
+import {
+  getUserFriendlyErrorMessage,
+  logError,
+  retryWithBackoff,
+  type AppError,
+} from '../utils/errorHandling';
 import type { Conversation } from '../types';
 
 interface CreateConversationData {
@@ -25,6 +32,7 @@ export const useConversation = () => {
     setError,
   } = useAppStore();
 
+  const { showSuccess, showError, showInfo } = useToast();
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -37,8 +45,12 @@ export const useConversation = () => {
       try {
         setIsCreating(true);
         setError(null);
+        showInfo('Creating conversation...');
 
-        const conversation = await conversationService.createConversation(data);
+        const conversation = await retryWithBackoff(
+          () => conversationService.createConversation(data),
+          2 // Max 2 retries for creation
+        );
 
         // Add to the conversation list
         addConversationToList({
@@ -51,17 +63,30 @@ export const useConversation = () => {
         setCurrentConversation(conversation);
         setMessages([]);
 
+        showSuccess('Conversation created successfully!');
         return conversation;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to create conversation';
-        setError(errorMessage);
+        const error = err as AppError;
+        const context = { action: 'create_conversation' };
+        const userMessage = getUserFriendlyErrorMessage(error, context);
+
+        logError(error, context);
+        setError(userMessage);
+        showError(userMessage);
         return null;
       } finally {
         setIsCreating(false);
       }
     },
-    [addConversationToList, setCurrentConversation, setMessages, setError]
+    [
+      addConversationToList,
+      setCurrentConversation,
+      setMessages,
+      setError,
+      showSuccess,
+      showError,
+      showInfo,
+    ]
   );
 
   /**
@@ -73,22 +98,28 @@ export const useConversation = () => {
         setLoading(true);
         setError(null);
 
-        const result = await conversationService.getConversation(id);
+        const result = await retryWithBackoff(() =>
+          conversationService.getConversation(id)
+        );
 
         setCurrentConversation(result.conversation);
         setMessages(result.messages);
 
         return true;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to load conversation';
-        setError(errorMessage);
+        const error = err as AppError;
+        const context = { action: 'load_conversation', conversationId: id };
+        const userMessage = getUserFriendlyErrorMessage(error, context);
+
+        logError(error, context);
+        setError(userMessage);
+        showError(userMessage);
         return false;
       } finally {
         setLoading(false);
       }
     },
-    [setCurrentConversation, setMessages, setLoading, setError]
+    [setCurrentConversation, setMessages, setLoading, setError, showError]
   );
 
   /**
@@ -107,10 +138,8 @@ export const useConversation = () => {
         }
         setError(null);
 
-        const response = await conversationService.getConversations(
-          page,
-          limit,
-          status
+        const response = await retryWithBackoff(() =>
+          conversationService.getConversations(page, limit, status)
         );
 
         if (append && list.length > 0) {
@@ -126,15 +155,19 @@ export const useConversation = () => {
 
         return true;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to load conversations';
-        setError(errorMessage);
+        const error = err as AppError;
+        const context = { action: 'load_conversations' };
+        const userMessage = getUserFriendlyErrorMessage(error, context);
+
+        logError(error, context);
+        setError(userMessage);
+        showError(userMessage);
         return false;
       } finally {
         setLoading(false);
       }
     },
-    [list, setConversationList, setLoading, setError]
+    [list, setConversationList, setLoading, setError, showError]
   );
 
   /**
@@ -149,8 +182,9 @@ export const useConversation = () => {
         setIsUpdating(true);
         setError(null);
 
-        const updatedConversation =
-          await conversationService.updateConversationStatus(id, status);
+        const updatedConversation = await retryWithBackoff(() =>
+          conversationService.updateConversationStatus(id, status)
+        );
 
         // Update in list
         updateConversationInList(id, updatedConversation);
@@ -160,17 +194,31 @@ export const useConversation = () => {
           setCurrentConversation(updatedConversation);
         }
 
+        showSuccess(
+          `Conversation ${status === 'archived' ? 'archived' : 'updated'} successfully!`
+        );
         return true;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to update conversation';
-        setError(errorMessage);
+        const error = err as AppError;
+        const context = { action: 'update_conversation', conversationId: id };
+        const userMessage = getUserFriendlyErrorMessage(error, context);
+
+        logError(error, context);
+        setError(userMessage);
+        showError(userMessage);
         return false;
       } finally {
         setIsUpdating(false);
       }
     },
-    [current, updateConversationInList, setCurrentConversation, setError]
+    [
+      current,
+      updateConversationInList,
+      setCurrentConversation,
+      setError,
+      showSuccess,
+      showError,
+    ]
   );
 
   /**
@@ -182,7 +230,10 @@ export const useConversation = () => {
         setIsDeleting(true);
         setError(null);
 
-        await conversationService.deleteConversation(id);
+        await retryWithBackoff(
+          () => conversationService.deleteConversation(id),
+          2 // Max 2 retries for deletion
+        );
 
         // Remove from list
         removeConversationFromList(id);
@@ -193,11 +244,16 @@ export const useConversation = () => {
           setMessages([]);
         }
 
+        showSuccess('Conversation deleted successfully!');
         return true;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to delete conversation';
-        setError(errorMessage);
+        const error = err as AppError;
+        const context = { action: 'delete_conversation', conversationId: id };
+        const userMessage = getUserFriendlyErrorMessage(error, context);
+
+        logError(error, context);
+        setError(userMessage);
+        showError(userMessage);
         return false;
       } finally {
         setIsDeleting(false);
@@ -209,6 +265,8 @@ export const useConversation = () => {
       setCurrentConversation,
       setMessages,
       setError,
+      showSuccess,
+      showError,
     ]
   );
 

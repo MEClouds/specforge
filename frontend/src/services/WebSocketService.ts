@@ -304,7 +304,7 @@ class WebSocketService {
       console.error('🔌 Max reconnection attempts reached');
       this.callbacks.onError?.({
         message:
-          'Unable to connect to server. Please check your connection and try again.',
+          'Unable to connect to server after multiple attempts. Please refresh the page or check your internet connection.',
         code: 'MAX_RECONNECT_ATTEMPTS',
       });
       return;
@@ -318,10 +318,11 @@ class WebSocketService {
       30000
     );
 
+    console.log(
+      `🔌 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms`
+    );
+
     setTimeout(() => {
-      console.log(
-        `🔌 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`
-      );
       this.connect();
     }, delay);
   }

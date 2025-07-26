@@ -94,6 +94,8 @@ interface SpecificationResponse {
 
 class ConversationService {
   private baseUrl: string;
+  private maxRetries: number = 3;
+  private retryDelay: number = 1000;
 
   constructor() {
     this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -101,28 +103,82 @@ class ConversationService {
 
   private async makeRequest<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retryCount: number = 0
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const requestId = crypto.randomUUID();
 
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-request-id': requestId,
-        ...options.headers,
-      },
-    });
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    const data = await response.json();
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-request-id': requestId,
+          ...options.headers,
+        },
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      const errorData = data as ErrorResponse;
-      throw new Error(errorData.error?.message || 'Request failed');
+      clearTimeout(timeoutId);
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorData = data as ErrorResponse;
+        const error = new Error(errorData.error?.message || 'Request failed');
+        (error as any).code = errorData.error?.code;
+        (error as any).statusCode = response.status;
+        (error as any).requestId = errorData.error?.requestId;
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      // Handle network errors, timeouts, and aborts
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Request timed out. Please try again.');
+        }
+
+        // Retry on network errors or 5xx server errors
+        const shouldRetry =
+          retryCount < this.maxRetries &&
+          (error.message.includes('fetch') ||
+            error.message.includes('network') ||
+            (error as any).statusCode >= 500);
+
+        if (shouldRetry) {
+          const delay = this.retryDelay * Math.pow(2, retryCount); // Exponential backoff
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return this.makeRequest<T>(endpoint, options, retryCount + 1);
+        }
+
+        // Enhance error messages for better user experience
+        if (error.message.includes('Failed to fetch')) {
+          throw new Error(
+            'Unable to connect to server. Please check your internet connection and try again.'
+          );
+        }
+
+        if ((error as any).statusCode === 429) {
+          throw new Error(
+            'Too many requests. Please wait a moment and try again.'
+          );
+        }
+
+        if ((error as any).statusCode >= 500) {
+          throw new Error(
+            'Server is temporarily unavailable. Please try again in a few moments.'
+          );
+        }
+      }
+
+      throw error;
     }
-
-    return data;
   }
 
   /**
@@ -166,7 +222,7 @@ class ConversationService {
   async getConversation(id: string): Promise<{
     conversation: Conversation;
     messages: ChatMessage[];
-    specifications: any[];
+    specifications: unknown[];
   }> {
     const response = await this.makeRequest<ConversationResponse>(
       `/api/conversations/${id}`

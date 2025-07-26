@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAppStore } from '../store';
+import { useToast } from '../contexts/ToastContext';
 import webSocketService, {
   type WebSocketCallbacks,
   type ConnectionStatus,
@@ -7,6 +8,7 @@ import webSocketService, {
   PersonaRole,
   ConversationPhase,
 } from '../services/WebSocketService';
+import { getUserFriendlyErrorMessage, logError } from '../utils/errorHandling';
 import type { ChatMessage } from '../types';
 
 export interface UseWebSocketOptions {
@@ -39,6 +41,7 @@ export const useWebSocket = (
     setActivePersonas,
   } = useAppStore();
 
+  const { showError, showWarning, showInfo } = useToast();
   const connectionStatusRef = useRef<ConnectionStatus>('disconnected');
   const isConnectedRef = useRef(false);
 
@@ -103,7 +106,15 @@ export const useWebSocket = (
 
       onError: (error: { message: string; code?: string }) => {
         console.error('❌ WebSocket error:', error);
-        setError(error.message);
+        const context = { action: 'websocket_communication' };
+        const userMessage = getUserFriendlyErrorMessage(
+          { message: error.message, code: error.code } as any,
+          context
+        );
+
+        logError(new Error(error.message), context);
+        setError(userMessage);
+        showError(userMessage);
         setIsGenerating(false);
         setTyping(false);
       },
@@ -113,13 +124,18 @@ export const useWebSocket = (
         updateConnectionStatus(status);
 
         if (status === 'disconnected') {
-          setError('Connection lost. Attempting to reconnect...');
+          const message = 'Connection lost. Attempting to reconnect...';
+          setError(message);
+          showWarning(message);
           setIsGenerating(false);
           setTyping(false);
         } else if (status === 'connected') {
           setError(null);
+          showInfo('Connected to server');
         } else if (status === 'reconnecting') {
-          setError('Reconnecting...');
+          const message = 'Reconnecting to server...';
+          setError(message);
+          showInfo(message);
         }
       },
     }),
@@ -130,6 +146,9 @@ export const useWebSocket = (
       setIsGenerating,
       setActivePersonas,
       updateConnectionStatus,
+      showError,
+      showWarning,
+      showInfo,
     ]
   );
 
@@ -160,52 +179,74 @@ export const useWebSocket = (
     (message: string) => {
       if (!conversationId) {
         console.warn('Cannot send message: No conversation ID');
+        showError('No active conversation');
         return;
       }
 
       if (!webSocketService.isConnected()) {
-        setError('Not connected to server');
+        const errorMessage =
+          'Not connected to server. Please wait for reconnection.';
+        setError(errorMessage);
+        showError(errorMessage);
         return;
       }
 
-      webSocketService.sendMessage(conversationId, message);
+      try {
+        webSocketService.sendMessage(conversationId, message);
+      } catch (error) {
+        const errorMessage = 'Failed to send message. Please try again.';
+        setError(errorMessage);
+        showError(errorMessage);
+      }
     },
-    [conversationId, setError]
+    [conversationId, setError, showError]
   );
 
   const requestAIResponse = useCallback(
     (contextOverrides: Partial<ConversationContext> = {}) => {
       if (!conversationId) {
         console.warn('Cannot request AI response: No conversation ID');
+        showError('No active conversation');
         return;
       }
 
       if (!webSocketService.isConnected()) {
-        setError('Not connected to server');
+        const errorMessage =
+          'Not connected to server. Please wait for reconnection.';
+        setError(errorMessage);
+        showError(errorMessage);
         return;
       }
 
       const currentConversation = conversation.current;
       if (!currentConversation) {
         console.warn('Cannot request AI response: No current conversation');
+        showError('No conversation loaded');
         return;
       }
 
-      // Build context from current conversation state
-      const context: ConversationContext = {
-        conversationId,
-        appIdea: currentConversation.appIdea,
-        targetUsers: currentConversation.targetUsers,
-        complexity: currentConversation.complexity || 'moderate',
-        currentPhase: ConversationPhase.INITIAL_DISCOVERY,
-        activePersonas: [PersonaRole.PRODUCT_MANAGER],
-        ...contextOverrides,
-      };
+      try {
+        // Build context from current conversation state
+        const context: ConversationContext = {
+          conversationId,
+          appIdea: currentConversation.appIdea,
+          targetUsers: currentConversation.targetUsers,
+          complexity: currentConversation.complexity || 'moderate',
+          currentPhase: ConversationPhase.INITIAL_DISCOVERY,
+          activePersonas: [PersonaRole.PRODUCT_MANAGER],
+          ...contextOverrides,
+        };
 
-      setIsGenerating(true);
-      webSocketService.requestAIResponse(conversationId, context);
+        setIsGenerating(true);
+        webSocketService.requestAIResponse(conversationId, context);
+      } catch (error) {
+        const errorMessage = 'Failed to request AI response. Please try again.';
+        setError(errorMessage);
+        showError(errorMessage);
+        setIsGenerating(false);
+      }
     },
-    [conversationId, conversation, setError, setIsGenerating]
+    [conversationId, conversation, setError, setIsGenerating, showError]
   );
 
   const startTyping = useCallback(() => {

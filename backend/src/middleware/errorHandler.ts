@@ -92,6 +92,27 @@ export const errorHandler = (
     if (process.env.NODE_ENV === 'development') {
       details = err.message;
     }
+  } else if (
+    err.message.includes('AI service') ||
+    err.message.includes('OpenAI') ||
+    err.message.includes('Claude')
+  ) {
+    // AI service errors
+    statusCode = 503;
+    code = 'AI_SERVICE_ERROR';
+    message =
+      'AI service is temporarily unavailable. Please try again in a few moments.';
+    if (process.env.NODE_ENV === 'development') {
+      details = err.message;
+    }
+  } else if (
+    err.message.includes('rate limit') ||
+    err.message.includes('quota')
+  ) {
+    // Rate limiting errors
+    statusCode = 429;
+    code = 'RATE_LIMIT_ERROR';
+    message = 'Too many requests. Please wait a moment before trying again.';
   } else if (err.message.includes('not found')) {
     statusCode = 404;
     code = 'NOT_FOUND';
