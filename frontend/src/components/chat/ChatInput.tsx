@@ -4,6 +4,8 @@ import Button from '../ui/Button';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
+  onInputChange?: () => void;
+  onInputBlur?: () => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -11,6 +13,8 @@ interface ChatInputProps {
 
 const ChatInput: React.FC<ChatInputProps> = ({
   onSendMessage,
+  onInputChange,
+  onInputBlur,
   disabled = false,
   placeholder = 'Describe your app idea...',
   className,
@@ -58,6 +62,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setIsComposing(false);
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value);
+    onInputChange?.();
+  };
+
+  const handleInputBlur = () => {
+    onInputBlur?.();
+  };
+
   const canSend = message.trim().length > 0 && !disabled && !isComposing;
 
   return (
@@ -67,7 +80,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
           <textarea
             ref={textareaRef}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
             onKeyDown={handleKeyDown}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
@@ -122,7 +136,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
       <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
         <span>Press Enter to send, Shift+Enter for new line</span>
         {disabled && (
-          <span className="text-orange-500 font-medium">AI is thinking...</span>
+          <span className="text-orange-500 font-medium">
+            {placeholder.includes('Connecting') ||
+            placeholder.includes('Reconnecting') ||
+            placeholder.includes('Disconnected')
+              ? 'Connecting to server...'
+              : 'AI is thinking...'}
+          </span>
         )}
       </div>
     </div>
