@@ -1,4 +1,4 @@
-import type { Conversation, ChatMessage } from '../types';
+import type { Conversation, ChatMessage, Specification } from '../types';
 
 interface CreateConversationRequest {
   title: string;
@@ -50,6 +50,46 @@ interface ErrorResponse {
     timestamp: string;
     requestId: string;
   };
+}
+
+interface ValidationResult {
+  isValid: boolean;
+  completeness: number;
+  issues: Array<{
+    file: string;
+    section: string;
+    message: string;
+    severity: 'error' | 'warning' | 'info';
+  }>;
+}
+
+interface SpecificationData {
+  id: string;
+  files: {
+    requirements: string;
+    design: string;
+    tasks: string;
+  };
+  metadata: {
+    conversationId: string;
+    title: string;
+    appIdea: string;
+    generatedAt: Date;
+    version: number;
+  };
+  validation: ValidationResult;
+  fileSizes: {
+    requirements: number;
+    design: number;
+    tasks: number;
+    total: number;
+  };
+  generationTimeMs?: number;
+}
+
+interface SpecificationResponse {
+  success: boolean;
+  data: SpecificationData;
 }
 
 class ConversationService {
@@ -150,7 +190,7 @@ class ConversationService {
     };
 
     const messages: ChatMessage[] =
-      response.data.conversation.messages?.map((msg: any) => ({
+      response.data.conversation.messages?.map((msg: unknown) => ({
         id: msg.id,
         conversationId: id,
         persona: msg.personaId
@@ -274,9 +314,127 @@ class ConversationService {
     });
   }
 
+  /**
+   * Get specifications for a conversation
+   */
+  async getSpecifications(conversationId: string): Promise<SpecificationData> {
+    const response = await this.makeRequest<SpecificationResponse>(
+      `/api/specifications/${conversationId}`
+    );
+
+    return {
+      ...response.data,
+      metadata: {
+        ...response.data.metadata,
+        generatedAt: new Date(response.data.metadata.generatedAt),
+      },
+    };
+  }
+
+  /**
+   * Download specifications as ZIP file
+   */
+  async downloadSpecifications(conversationId: string): Promise<void> {
+    const url = `${this.baseUrl}/api/specifications/${conversationId}/download`;
+    const requestId = crypto.randomUUID();
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'x-request-id': requestId,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Download failed');
+    }
+
+    // Get filename from Content-Disposition header
+    const contentDisposition = response.headers.get('Content-Disposition');
+    const filename = contentDisposition
+      ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
+      : 'specifications.zip';
+
+    // Create blob and download
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  /**
+   * Download individual specification file
+   */
+  async downloadSpecificationFile(
+    conversationId: string,
+    fileType: 'requirements' | 'design' | 'tasks'
+  ): Promise<void> {
+    const url = `${this.baseUrl}/api/specifications/${conversationId}/file/${fileType}`;
+    const requestId = crypto.randomUUID();
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'x-request-id': requestId,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Download failed');
+    }
+
+    // Create blob and download
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `${fileType}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  /**
+   * Validate specifications
+   */
+  async validateSpecifications(
+    conversationId: string
+  ): Promise<ValidationResult> {
+    const response = await this.makeRequest<{
+      success: boolean;
+      data: { validation: ValidationResult };
+    }>(`/api/specifications/${conversationId}/validate`, {
+      method: 'POST',
+    });
+
+    return response.data.validation;
+  }
+
   // Helper methods for persona mapping
-  private mapPersonaRole(role: string | undefined): unknown {
-    const roleMap: Record<string, string> = {
+  private mapPersonaRole(
+    role: string | undefined
+  ):
+    | 'product-manager'
+    | 'tech-lead'
+    | 'ux-designer'
+    | 'devops'
+    | 'scrum-master' {
+    const roleMap: Record<
+      string,
+      | 'product-manager'
+      | 'tech-lead'
+      | 'ux-designer'
+      | 'devops'
+      | 'scrum-master'
+    > = {
       PRODUCT_MANAGER: 'product-manager',
       TECH_LEAD: 'tech-lead',
       UX_DESIGNER: 'ux-designer',

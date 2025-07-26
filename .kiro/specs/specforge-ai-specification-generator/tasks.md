@@ -100,7 +100,7 @@
   - Add conversation completion detection and transition to specification generation
   - _Requirements: 1.1, 2.1, 2.2, 2.3, 2.4, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6_
 
-- [ ] 12. Build specification preview and download system
+- [x] 12. Build specification preview and download system
 
   - Create SpecificationPreview component with tabbed interface
   - Implement markdown rendering for specification preview
